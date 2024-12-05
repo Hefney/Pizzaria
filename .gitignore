@@ -4,3 +4,24 @@ EXR.csv
 TOP_DECOUPLED.csv
 TOP.csv
 vocab.csv
+volume.csv
+topping.csv
+style.csv
+size.csv
+quant.csv
+number.csv
+drink_type.csv
+container_type.csv
+labels/none.csv
+labels/quantity.csv
+tokens/container_type_tokens.csv
+tokens/drink_type_tokens.csv
+tokens/number_tokens.csv
+tokens/none_tokens.csv
+tokens/size_tokens.csv
+tokens/quantity_tokens.csv
+tokens/style_tokens.csv
+tokens/topping_tokens.csv
+tokens/volume_tokens.csv
+model_weights.pth
+labeled entities.csv
