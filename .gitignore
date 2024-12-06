@@ -25,3 +25,5 @@ tokens/topping_tokens.csv
 tokens/volume_tokens.csv
 model_weights.pth
 labeled entities.csv
+labels.pt
+tokens.pt
