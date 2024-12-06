@@ -27,3 +27,6 @@ model_weights.pth
 labeled entities.csv
 labels.pt
 tokens.pt
+token_test.pt
+model.pth
+label_tensor.pt
