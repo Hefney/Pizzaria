@@ -50,3 +50,6 @@ tokens_tensors/tokens_batch_9.pt
 labels_tensors/labels_batch_0.pt
 labels_tensors/labels_batch_1.pt
 labels_tensors/labels_batch_2.pt
+__pycache__/utils.cpython-312.pyc
+PIZZA_dev.json
+MWE_TOKENS.pkl
