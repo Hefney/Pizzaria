@@ -281,7 +281,7 @@ def create_labeled_vocab(vocab: pd.DataFrame):
 
     vocab = vocab.reset_index(drop=True)
 
-    vocab["1"] = "none"
+    vocab["1"] = "unk"
     # because pizza, negation aren't put within () in preprocessing
     
     # i put them by myself to remove them from the None set
@@ -309,6 +309,7 @@ def create_labeled_vocab(vocab: pd.DataFrame):
     vocab_encoder = one_hot_encoding(vocab[vocab.columns[0]])
 
 # this will be as used as our target outputs 
+    csv_file_names.append("unk")
     label_encoder = one_hot_encoding(pd.Series(csv_file_names))
 
     encoded_tokens = vocab_encoder.transform(vocab["0"].to_numpy().reshape(-1,1))
@@ -316,7 +317,7 @@ def create_labeled_vocab(vocab: pd.DataFrame):
     vocab.rename(columns={"0": "tokens","1": "labels"},inplace=True)
 
     vocab["encoded_tokens"] = pd.Series([x.toarray().argmax(axis=1)[0] for x in encoded_tokens])
-    vocab["encoded_labels_array"] = pd.Series([x.toarray()[0] for x in encoded_labels])
+    
     vocab["encoded_labels"] = pd.Series([x.toarray().argmax(axis=1)[0] for x in encoded_labels])
     
     # write for future purposes instead of going through this loop again
@@ -332,11 +333,14 @@ class conversions():
         self.id_to_label = dict(zip(vocab["encoded_labels"],vocab["labels"]))
         
     def word2id(self,word):
-        return self.token_to_id.get(word, None)
+        x = self.token_to_id.get(word, None)
+        if x:
+            return x
+        else:
+            return self.token_to_id.get("unk",None)
     def word2labels(self,word):
         return self.token_to_label.get(word, -1)
     def id2token(self,number):
-        print(number)
         return self.id_to_token.get(int(number),"unk")
     def id2label(self,number):
         return self.id_to_label.get(number, None)
