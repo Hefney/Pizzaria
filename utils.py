@@ -10,7 +10,7 @@ import torch.nn as nn
 from sklearn.preprocessing import OneHotEncoder
 import pickle
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if  torch.cuda.is_available() else "cpu")
 
 # Read the Dataset given path to JSON file
 # input: JSON file   -> output: list of size 4 (sentence, EXR, TOP, TOP_DECOUPLED) * number of strings
@@ -24,14 +24,17 @@ def read_dataset(path: str):
     return parsed_json # we store data in list of PD.Series for now
 
 # the function takes SERIES of string sentences -> outputs SERIES of String sentences
-def pre_text_normalization(sentences : pd.Series, flag = -1):
+def pre_text_normalization(sentences : pd.Series):
 # Words to Lower
     sentences = sentences.str.lower()
 # SIZES
+
 # after asking the TA, stating one format isn't a good idea so i won't standaradize the format
 # so things like Party - size , party size to standaradize this i will just remove the '-'
     sentences = sentences.str.replace(r"-"," ",regex=True)
+    
     sentences = sentences.str.replace(r"\s{2}",r" ",regex=True)
+
 # sometimes they refer to pizza as pie : WE ONLY SELL PIZZA
     sentences = sentences.str.replace("pie", "pizza")
 
@@ -49,8 +52,7 @@ def pre_text_normalization(sentences : pd.Series, flag = -1):
 
 # Quantity like "a" pizza should be converted to "one" , only one, just one -> one
     sentences = sentences.str.replace(r"\ban?(?!\s+(bit|tiny|lot|little))\b","one",regex=True)
-    sentences = sentences.str.replace(r"\b(?:only|just)\sone\b","one",regex=True)
-    
+
 # there are alot of Quantitative items 3 pies, Three pies ..
 # normalize digits to words 
     sentences = sentences.str.replace(r"\b([0-9]+)\b",lambda match: num2words(int(match.group(1))),regex=True)
@@ -70,9 +72,8 @@ def pre_text_normalization(sentences : pd.Series, flag = -1):
 # DRINKS
 
     sentences = sentences.str.replace(r"\bmilliliter\b", "ml", regex=True)
+
     sentences = sentences.str.replace(r"\bfluid\b","fl",regex=True)
-# drink_type is either bottle or can , i'm not interested in how he says it in a can, in a bottle 
-    sentences = sentences.str.replace(r"(?:in\s)?(?:one\s)?(\w+)",r"\1",regex=True)
 # sometimes people say pepsi, sometimes pepsis so i don't want plurals -> let's stem
     sentences = sentences.str.replace(r"\b(\w\w+)e?s\b",r"\1",regex=True)
 # sometimes san pellegrino is said pellegrino only
@@ -103,7 +104,7 @@ def tokenization(sentences: pd.Series, tokenizesentences = -1):
     tokenizer = TreebankWordTokenizer()
     all_words = tokenizer.tokenize(all_words)
     if tokenizesentences != -1:
-        with open('MWE_TOKENS.pkl', 'rb') as file:
+        with open('DRINK_MWE_TOKENS.pkl', 'rb') as file:
             loaded_tokenizer = pickle.load(file)
         all_words = loaded_tokenizer.tokenize(all_words)
     # keep the unique 
@@ -124,30 +125,52 @@ def tokenization(sentences: pd.Series, tokenizesentences = -1):
    
    # negation check regex : \b(?<=not?)(.*?)(?=(\.|,|$|and))\b (for the future maybe ?)
     return vocab, padded_tokenized_sentences
+def simple_convert_strings_to_regex(mylist: list[str]):
+    for i, string in enumerate(mylist):
+        string = string.replace(" ", r"\s")
+        string = r"\s"+string+r"\s"
+        mylist[i] = string
+    return mylist
+
 def extract_pizza_drinks(parsed_tree: pd.Series): # the tree is a SERIES of format that is like this (ORDER (DRINK,))....
 
 # i extract PIZZAORDER node if exist, and DRINKORDER node if exist
     
     pizza_orders, drink_orders = None, None
-    
-    
-    order_pattern = r"(?<=\(ORDER)(.*)(?=\))"   
-    # (ORDER i want to eat (PIZZAORDER)) This regex will extract i want to eat
-    extracted_words_before_parsing = r"(?:(?:\(ORDER\s+)|(?:\)))([^()]+)(?=[\s(]+)"
-    
-    none_words = parsed_tree.str.extractall(extracted_words_before_parsing).iloc[:,0].str.strip()
-    
-    none_words = none_words.dropna().reset_index(drop=True)
+    # pattern that is interested in matching everything between "(ORDER" and ")"
+    # deleting parenthesis -> ease next steps of regex
 
-    # remove the (ORDER and it's closing parenthesis at the end to ease next step by using order_pattern
+    order_pattern = r"(?<=\(ORDER)(.*)(?=\))"   
+    
+    # (ORDER i want to eat (PIZZAORDER) without (NOT...)) This regex will extract i want to eat, without
+    # anything between ) "" (, anything after (ORDER  -> Extract all Words that may be NONE (needs to be refined)
+    extracted_words_before_parsing = r"(?:(?:\(ORDER\s+)|(?:\)))([^()]+)(?=[\s(]+)"
+    # extract None words first before removing the (ORDER -> (can be done after removing it also)
+    none_words = parsed_tree.str.extractall(extracted_words_before_parsing).iloc[:,0].str.strip()
+    # clean the none words extracted
+    none_words = none_words.dropna()
+    none_words = none_words.drop_duplicates()
+
+    none_words.reset_index(drop=True)
+
+    # use the order_pattern
     extracted_orders = parsed_tree.str.extractall(order_pattern).iloc[:,0].str.strip()
+
+    # i have interested parenthesises (PIZZAORDER)(DRINKORDER)
+    # that may be interrupted by some none tokens -> i don't them anymore after i extracted them above
+    # so i will delete them from the Strings to make the parser work correctly
+    regex_list = simple_convert_strings_to_regex(none_words.tolist())
+
+    for word in regex_list:
+        extracted_orders = extracted_orders.str.replace(word,"",regex=True)
 
     # this regex leads to 2 capture groups : anything after PIZZAORDER and before ) and anything after DRINKORDER and before )
     # # match non capturing group (PIZZA ORDER someshit) if exist, and match non capturing group (DRINKORDER someshit) if exist
     # why non capturing? because i don't want the PD.extract to put it in the resulted Dataframe
     # in each group : search for (PIZZAORDER then space 0 more -it should be 1- then match "(" then
-    # anything that isn't ")" one or more -words- then space 0 or more then ) then space 0 or more IF EXIST same for DRINK  
-    pizza_drink_order_patterns = r" (?:\(PIZZAORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)?(?:\(DRINKORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)? "
+    # anything that isn't ")" one or more -words- then space 0 or more then ) then space 0 or more IF EXIST same for DRINK
+    # Theoretically : this regex can match anything, 
+    pizza_drink_order_patterns = r"(?:\(PIZZAORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)?(?:\(DRINKORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)?"
 
     # This is a dataframe of two series where 0 : pizza orders , 1: drink order
     extracted_PIZZA_DRINK = parsed_tree.str.extractall(pizza_drink_order_patterns)
@@ -159,21 +182,7 @@ def extract_pizza_drinks(parsed_tree: pd.Series): # the tree is a SERIES of form
     drink_orders = drink_orders.dropna().reset_index(drop=True)
     # remove the sentences where the user didn't order pizzas
     pizza_orders = pizza_orders.dropna().reset_index(drop=True)
-    # (PIZZAORDER pizza (TOPPING)) Now i want pizza to be captured
-    # so i will encapsulate it with (NONE \w+), i will process this before training
-    # so that words like pizza goes to pizza class, can goes to drink_container class
-    pizza_orders = pizza_orders.replace(r"(?<=\))(.*?)(?=\()",r"(NONE \1)",regex=True)
-
-    # because the previous pattern may match spaces between brackets as words
-    # (TOPPing habd)\s(Topping habd2) it will make \s encapsulated and become (NONE \s)
-    # so remove it here
-
-    pizza_orders = pizza_orders.replace(r"\(NONE\s*\)", "",regex=True)
-    # same for drink_orders
-    drink_orders = drink_orders.replace(r"(?<=\))(.*?)(?=\()",r"(NONE \1)",regex=True)
-
-    drink_orders = drink_orders.replace(r"\(NONE\s*\)", "",regex=True)
-    # clean the ram 
+    
     del extracted_orders
     del extracted_PIZZA_DRINK
     # return series of pizzaorders (TOPPING)(STYLE....), series of drinkorders of same format
@@ -184,7 +193,7 @@ def extract_pizza_drinks(parsed_tree: pd.Series): # the tree is a SERIES of form
 def extract_nodes(pizza_orders:pd.Series,drink_orders:pd.Series):
     drink_nodes, pizza_nodes = [] ,[]
     if np.any(pizza_orders) :
-        pizza_node_attributes = ["NUMBER","SIZE","NONE","TOPPING","QUANTITY","STYLE"]
+        pizza_node_attributes = ["NUMBER","SIZE","TOPPING","QUANTITY","STYLE"]
         for attribute in pizza_node_attributes:
             node_pattern = r"(?<=\("+attribute+r")(.*?)(?=\))"
             pizza_order_node = pizza_orders.str.extract(node_pattern)
@@ -192,7 +201,7 @@ def extract_nodes(pizza_orders:pd.Series,drink_orders:pd.Series):
             pizza_nodes.append(pizza_order_node)
             
     if np.any(drink_orders) :
-        drink_node_attributes = ["NUMBER","SIZE","NONE", "DRINKTYPE","CONTAINERTYPE","VOLUME"]
+        drink_node_attributes = ["NUMBER","SIZE","DRINKTYPE","CONTAINERTYPE","VOLUME"]
         for attribute in drink_node_attributes:
             node_pattern = r"(?<=\("+attribute+r")(.*?)(?=\))"
             drink_order_node = drink_orders.str.extract(node_pattern)
@@ -204,8 +213,8 @@ def clean_extracted_nodes(pizza_nodes: list[pd.Series], drink_nodes: list[pd.Ser
     # alot of nans so i will drop those, normalize the text and drop the duplicates
     # after this step i can start labling the text
     new_pizza_nodes, new_drink_nodes = [], []
-    drink_node_attributes = ["NUMBER","SIZE","NONE", "DRINKTYPE","CONTAINERTYPE","VOLUME"]
-    pizza_node_attributes = ["NUMBER","SIZE","NONE","TOPPING","QUANTITY","STYLE"]
+    drink_node_attributes = ["NUMBER","SIZE", "DRINKTYPE","CONTAINERTYPE","VOLUME"]
+    pizza_node_attributes = ["NUMBER","SIZE","TOPPING","QUANTITY","STYLE"]
     for i in range(0,len(pizza_nodes)):
 
         node = pizza_nodes[i].dropna().reset_index(drop=True)
@@ -232,7 +241,7 @@ def clean_extracted_nodes(pizza_nodes: list[pd.Series], drink_nodes: list[pd.Ser
 
         new_pizza_nodes.append(node)
     # because if style or the latter nodes  wasn't found  (technically impossiblek)
-    while len(new_pizza_nodes) <6:
+    while len(new_pizza_nodes) <5:
         new_pizza_nodes.append(None)
 
     for i in range(0,len(drink_nodes)):
@@ -258,7 +267,7 @@ def clean_extracted_nodes(pizza_nodes: list[pd.Series], drink_nodes: list[pd.Ser
         
         new_drink_nodes.append(node)
 
-    while len(new_drink_nodes) <6:
+    while len(new_drink_nodes) <5:
         new_drink_nodes.append(None)
     
     return new_pizza_nodes, new_drink_nodes
@@ -277,31 +286,23 @@ def create_labeled_vocab(vocab: pd.DataFrame):
    
     # add unknown for future when testing eval set
    
-    vocab.loc[-1] = "unk"
+    vocab.loc[-1] = "UNK"
 
     vocab = vocab.reset_index(drop=True)
 
-    vocab["1"] = "unk"
+    vocab["1"] = "UNK"
     # because pizza, negation aren't put within () in preprocessing
     
     # i put them by myself to remove them from the None set
-    labels = [None, None, None, None, None, None, None, None, None, pd.Series("pizza"), pd.Series(["hold","without","no","avoid","hate","ani"])]
+    labels = [None, None, None, None, None, None, None, None, None,None,pd.Series("pizza")]
 
-    csv_file_names = ["number", "size", "none","topping","quantity","style","drink_type","container_type","volume"]
+    csv_file_names = ["number", "size", "none","topping","quantity","style","drink_type","container_type","volume","negation"]
 
     for i, csv in zip(range(0,len(labels)), csv_file_names):
         labels[i] = pd.read_csv(f"./labels/{csv}.csv").iloc[:,0]
         labels[i] = labels[i].str.strip()
-        
-    for i in range(0,11):
-        if i != 2:
-            labels[2] = labels[2][~labels[2].isin(labels[i])]
-            labels[2].dropna(inplace=True)
-            labels[2] = labels[2].reset_index(drop=True)
-    for i in range(1,11):
-        labels[i] = labels[i][~labels[i].isin(labels[0])]
 
-    csv_file_names.extend(["pizza","neg"])
+    csv_file_names.insert(11,"pizza")
     for i in range(0,11):
         vocab.loc[vocab["0"].isin(labels[i]),"1"] = csv_file_names[i]
  
@@ -309,11 +310,12 @@ def create_labeled_vocab(vocab: pd.DataFrame):
     vocab_encoder = one_hot_encoding(vocab[vocab.columns[0]])
 
 # this will be as used as our target outputs 
-    csv_file_names.append("unk")
+    csv_file_names.append("UNK")
     label_encoder = one_hot_encoding(pd.Series(csv_file_names))
 
     encoded_tokens = vocab_encoder.transform(vocab["0"].to_numpy().reshape(-1,1))
     encoded_labels = label_encoder.transform(vocab["1"].to_numpy().reshape(-1,1))
+
     vocab.rename(columns={"0": "tokens","1": "labels"},inplace=True)
 
     vocab["encoded_tokens"] = pd.Series([x.toarray().argmax(axis=1)[0] for x in encoded_tokens])
@@ -327,8 +329,9 @@ def create_labeled_vocab(vocab: pd.DataFrame):
 class conversions():
     def __init__(self,vocab):
         self.token_to_id = dict(zip(vocab["tokens"], vocab["encoded_tokens"]))
+        self.token_to_id["PAD"] = vocab.shape[0]
         self.token_to_label = dict(zip(vocab["tokens"], vocab["encoded_labels"]))
-        
+
         self.id_to_token = dict(zip(vocab["encoded_tokens"],vocab["tokens"]))
         self.id_to_label = dict(zip(vocab["encoded_labels"],vocab["labels"]))
         
@@ -337,11 +340,11 @@ class conversions():
         if x:
             return x
         else:
-            return self.token_to_id.get("unk",None)
+            return self.token_to_id.get("UNK",None)
     def word2labels(self,word):
         return self.token_to_label.get(word, -1)
     def id2token(self,number):
-        return self.id_to_token.get(int(number),"unk")
+        return self.id_to_token.get(int(number),"UNK")
     def id2label(self,number):
         return self.id_to_label.get(number, None)
 # we can use the DataSet class from pytorch to facilitate 
@@ -367,20 +370,27 @@ def to_pass_size_as_arg(size):
 class RNN(nn.Module):
     def __init__(self, input_size, num_classes, hidden_size):
         super(RNN,self).__init__()
-        self.embedding = nn.Embedding(num_embeddings=input_size,embedding_dim=100).to(device)
- 
+        self.embedding = nn.Embedding(num_embeddings=input_size+1,embedding_dim=100,padding_idx=input_size).to(device)
+        nn.init.kaiming_uniform_(self.embedding.weight,mode="fan_in", nonlinearity="relu")
         self.hidden_size = hidden_size
         # batch_first = True means that batch is the first dimension
         # shape : batch_first, seq, input_size
         self.lstm = nn.LSTM(input_size=100,hidden_size=hidden_size, batch_first=True, bidirectional=True).to(device)
+        self.dropout = nn.Dropout(p=0.5)
+        for name, param in self.lstm.named_parameters():
+            if 'weight_ih' in name:
+                nn.init.kaiming_uniform_(param.data)  # Kaiming initialization for input weights
+            elif 'weight_hh' in name:
+                nn.init.orthogonal_(param.data)  # Orthogonal initialization for hidden weights
+            elif 'bias' in name:
+                nn.init.zeros_(param.data)  # Initialize biases to zero
         # linear layer : from hidden RNN to Output
         self.fc = nn.Linear(hidden_size*2, num_classes).to(device)
+        nn.init.kaiming_uniform_(self.fc.weight,mode="fan_in", nonlinearity="relu")
 
     def forward(self, input):
         # input is batch, seq cuz it's integer indices
-        mask_condition = input >0
-        input = input *mask_condition
-        
+
         embed = self.embedding(input)
         # for LSTM we need initial tensor state + initial hidden state
         # where initial tensor state is called (cell)

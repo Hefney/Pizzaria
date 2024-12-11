@@ -53,3 +53,7 @@ labels_tensors/labels_batch_2.pt
 __pycache__/utils.cpython-312.pyc
 PIZZA_dev.json
 MWE_TOKENS.pkl
+labels/negation.csv
+DRINK_MWE_TOKENS.pkl
+tokens_tensors.pt
+labels_tensors.pt
