@@ -50,9 +50,6 @@ def pre_text_normalization(sentences : pd.Series):
     a lot of, lots of
     '''
 
-# Quantity like "a" pizza should be converted to "one" , only one, just one -> one
-    sentences = sentences.str.replace(r"\ban?(?!\s+(bit|tiny|lot|little))\b","one",regex=True)
-
 # there are alot of Quantitative items 3 pies, Three pies ..
 # normalize digits to words 
     sentences = sentences.str.replace(r"\b([0-9]+)\b",lambda match: num2words(int(match.group(1))),regex=True)
