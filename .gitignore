@@ -57,3 +57,16 @@ labels/negation.csv
 DRINK_MWE_TOKENS.pkl
 tokens_tensors.pt
 labels_tensors.pt
+pipeline.ipynb
+eval_DRINK_MWE_TOKENS.pkl
+eval_labels_tensors.pt
+eval_MWE_TOKENS.pkl
+eval_tokenized_sentences.csv
+eval_tokens_tensors.pt
+eval_vocab.csv
+sampled_for_SG.csv
+unique_indices.csv
+utils.py
+eval_labels/negation.csv
+eval_labels/none.csv
+eval_labels/quantity.csv
