@@ -1,0 +1,3 @@
+C:/Users/xAbdoMo/Desktop/Uni/Projects/Pizzaria/input_parser/cmake-build-debug/CMakeFiles/input_parser.dir
+C:/Users/xAbdoMo/Desktop/Uni/Projects/Pizzaria/input_parser/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/xAbdoMo/Desktop/Uni/Projects/Pizzaria/input_parser/cmake-build-debug/CMakeFiles/rebuild_cache.dir
