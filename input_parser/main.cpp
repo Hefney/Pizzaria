@@ -441,9 +441,9 @@ int main() {
 //        return 0;
 //    }
 
-    std::string input_file = "../../PIZZA_train.json";
-    std::string prefix      = "train";
-    std::string output_file = "../../processed_input/train_";
+    std::string input_file = "../../PIZZA_test.json";
+    std::string prefix      = "test";
+    std::string output_file = "../../processed_input/test_";
 
     std::ifstream in_file(input_file);
     std::string line;
