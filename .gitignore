@@ -59,3 +59,14 @@ tokens_tensors.pt
 labels_tensors.pt
 processed_input/
 /input_parser/cmake-build-debug/
+eval_DRINK_MWE_TOKENS.pkl
+eval_labels_tensors.pt
+eval_MWE_TOKENS.pkl
+eval_tokenized_sentences.csv
+eval_tokens_tensors.pt
+eval_vocab.csv
+sampled_for_SG.csv
+unique_indices.csv
+eval_labels/negation.csv
+eval_labels/quantity.csv
+eval_labels/none.csv
