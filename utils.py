@@ -24,9 +24,10 @@ def read_dataset(path: str):
     return parsed_json # we store data in list of PD.Series for now
 
 # the function takes SERIES of string sentences -> outputs SERIES of String sentences
-def pre_text_normalization(sentences : pd.Series):
+def pre_text_normalization(sentences : pd.Series, lowerize =-1):
 # Words to Lower
-    sentences = sentences.str.lower()
+    if lowerize == -1:
+        sentences = sentences.str.lower()
 # SIZES
 
 # after asking the TA, stating one format isn't a good idea so i won't standaradize the format
@@ -93,16 +94,27 @@ def snow_ball_stemmer(vocab):
     else:
         vocab = vocab.apply(lambda words: [stemmer.stem(word) for word in words])
         return vocab
+def prepend_start_marker(lst):
+    lst.insert(0, "<S>")
+    return lst
+def append_end_marker(lst):
+    lst.append("</S>")
+    return lst
 # the function takes SERIES of string sentences -> outputs SET of vocab and , SERIES of list of tokens
-def tokenization(sentences: pd.Series, tokenizesentences = -1):
+def tokenization(sentences: pd.Series, tokenizesentences = -1, no_pad=False,eval=False):
     # merge the whole series int one sentence to make the vocab extracting faster
     all_words = ' '.join(sentences)
     # used penn treebank tokenizer
     tokenizer = TreebankWordTokenizer()
     all_words = tokenizer.tokenize(all_words)
     if tokenizesentences != -1:
-        with open('DRINK_MWE_TOKENS.pkl', 'rb') as file:
-            loaded_tokenizer = pickle.load(file)
+        if not eval:
+            with open('DRINK_MWE_TOKENS.pkl', 'rb') as file:
+                loaded_tokenizer = pickle.load(file)
+        else:
+            with open("eval_DRINK_MWE_TOKENS.pkl","rb") as file:
+                loaded_tokenizer = pickle.load(file)
+        print(all_words)
         all_words = loaded_tokenizer.tokenize(all_words)
     # keep the unique 
     vocab = set(all_words)
@@ -110,22 +122,26 @@ def tokenization(sentences: pd.Series, tokenizesentences = -1):
     sentences = sentences.apply(tokenizer.tokenize)
     if tokenizesentences != -1:
         sentences = sentences.apply(loaded_tokenizer.tokenize)
-
+    
     sentences.fillna("",inplace=True)
 
     # convert tokenized_sentences into padded lists so that they have same dimension
     
     max_length = sentences.map(len).max()
-    padded_tokenized_sentences = sentences.apply(lambda x: x + [np.nan] * (max_length - len(x)))
-    padded_tokenized_sentences = pd.DataFrame(padded_tokenized_sentences.tolist())
-    padded_tokenized_sentences.fillna(0,inplace = True)
+    padded_tokenized_sentences = sentences
+    if not no_pad:
+        sentences = sentences.apply(lambda x: prepend_start_marker(x))
+        sentences = sentences.apply(lambda x: append_end_marker(x))
+        padded_tokenized_sentences = sentences.apply(lambda x: x + [np.nan] * (max_length - len(x)))
+        padded_tokenized_sentences = pd.DataFrame(padded_tokenized_sentences.tolist())
+        padded_tokenized_sentences.fillna(0,inplace = True)
    
    # negation check regex : \b(?<=not?)(.*?)(?=(\.|,|$|and))\b (for the future maybe ?)
     return vocab, padded_tokenized_sentences
 def simple_convert_strings_to_regex(mylist: list[str]):
     for i, string in enumerate(mylist):
         string = string.replace(" ", r"\s")
-        string = r"\s"+string+r"\s"
+        string = r"\b"+string+r"\b"
         mylist[i] = string
     return mylist
 
@@ -145,43 +161,43 @@ def extract_pizza_drinks(parsed_tree: pd.Series): # the tree is a SERIES of form
     # extract None words first before removing the (ORDER -> (can be done after removing it also)
     none_words = parsed_tree.str.extractall(extracted_words_before_parsing).iloc[:,0].str.strip()
     # clean the none words extracted
-    none_words = none_words.dropna()
-    none_words = none_words.drop_duplicates()
+    none_words.dropna()
+    none_words.drop_duplicates(inplace=True)
 
-    none_words.reset_index(drop=True)
-
+    temp = set()
+    for word in none_words:
+        x = word.split()
+        temp.update(set(x))
+    none_words = list(temp)
+    del temp
     # use the order_pattern
     extracted_orders = parsed_tree.str.extractall(order_pattern).iloc[:,0].str.strip()
 
     # i have interested parenthesises (PIZZAORDER)(DRINKORDER)
     # that may be interrupted by some none tokens -> i don't them anymore after i extracted them above
     # so i will delete them from the Strings to make the parser work correctly
-    regex_list = simple_convert_strings_to_regex(none_words.tolist())
+    regex_list = simple_convert_strings_to_regex(none_words.copy())
 
     for word in regex_list:
         extracted_orders = extracted_orders.str.replace(word,"",regex=True)
 
-    # this regex leads to 2 capture groups : anything after PIZZAORDER and before ) and anything after DRINKORDER and before )
-    # # match non capturing group (PIZZA ORDER someshit) if exist, and match non capturing group (DRINKORDER someshit) if exist
-    # why non capturing? because i don't want the PD.extract to put it in the resulted Dataframe
-    # in each group : search for (PIZZAORDER then space 0 more -it should be 1- then match "(" then
-    # anything that isn't ")" one or more -words- then space 0 or more then ) then space 0 or more IF EXIST same for DRINK
-    # Theoretically : this regex can match anything, 
-    pizza_drink_order_patterns = r"(?:\(PIZZAORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)?(?:\(DRINKORDER\s*((?:\(?[^\)]+\)?\s*)*)\)\s*)?"
+    
+    # every pizzaorder either ends with pizzaorder, drink order, or end of sentence, same for drinks
+    pizza_order_pattern = r"(?<=\(PIZZAORDER\s)(.*?)(?=\)\s*$|\)\s*\(DRINKORDER|\)\s*\(PIZZAORDER)"
+    drink_order_pattern = r"(?<=\(DRINKORDER\s)(.*?)(?=\)\s*$|\)\s*\(DRINKORDER|\)\s*\(PIZZAORDER)"
 
-    # This is a dataframe of two series where 0 : pizza orders , 1: drink order
-    extracted_PIZZA_DRINK = parsed_tree.str.extractall(pizza_drink_order_patterns)
+
+    pizza_orders = extracted_orders.str.extractall(pizza_order_pattern)
     
-    pizza_orders = extracted_PIZZA_DRINK[0]
-    
-    drink_orders = extracted_PIZZA_DRINK[1]
+    drink_orders = extracted_orders.str.extractall(drink_order_pattern)
+
     # remove the sentences where the user didn't order drinks
     drink_orders = drink_orders.dropna().reset_index(drop=True)
     # remove the sentences where the user didn't order pizzas
     pizza_orders = pizza_orders.dropna().reset_index(drop=True)
     
     del extracted_orders
-    del extracted_PIZZA_DRINK
+
     # return series of pizzaorders (TOPPING)(STYLE....), series of drinkorders of same format
     # series of none_words i, 'd, want, .... 
     return pizza_orders, drink_orders, none_words
@@ -268,7 +284,26 @@ def clean_extracted_nodes(pizza_nodes: list[pd.Series], drink_nodes: list[pd.Ser
         new_drink_nodes.append(None)
     
     return new_pizza_nodes, new_drink_nodes
+def create_labeled_eval_vocab(convertor):
+    eval_vocab = pd.read_csv("eval_vocab.csv")
+    with open("eval_DRINK_MWE_TOKENS.pkl","rb") as file:
+        eval_mwe = pickle.load(file)
+    eval_vocab["0"].apply(eval_mwe.tokenize)
+    eval_vocab["1"] = None
+    labels = [None, None, None, None, None, None, None, None, None,None,pd.Series("pizza")]
 
+    csv_file_names = ["number", "size", "none","topping","quantity","style","drink_type","container_type","volume","negation"]
+
+    for i, csv in zip(range(0,len(labels)), csv_file_names):
+        labels[i] = pd.read_csv(f"./eval_labels/{csv}.csv").iloc[:,0]
+        labels[i] = labels[i].str.strip()
+    csv_file_names.insert(11,"pizza")
+    for i in range(0,11):
+        eval_vocab.loc[eval_vocab["0"].isin(labels[i]),"1"] = csv_file_names[i]
+    eval_vocab["encoded_tokens"] =  eval_vocab["0"].map(convertor.word2id)
+    eval_vocab["encoded_labels"] = eval_vocab["1"].map(convertor.labels2id)
+
+    return eval_vocab
 def one_hot_encoding(vocab):
     unlabeled_vocab = vocab.to_numpy().reshape(-1,1)
     
@@ -277,7 +312,7 @@ def one_hot_encoding(vocab):
     encoder = encoder.fit(unlabeled_vocab)
 
     return encoder
-def create_labeled_vocab(vocab: pd.DataFrame):
+def create_labeled_vocab(vocab: pd.DataFrame,eval=False):
     if isinstance(vocab, type(None)):
         vocab = pd.read_csv("vocab.csv")
    
@@ -296,8 +331,8 @@ def create_labeled_vocab(vocab: pd.DataFrame):
     csv_file_names = ["number", "size", "none","topping","quantity","style","drink_type","container_type","volume","negation"]
 
     for i, csv in zip(range(0,len(labels)), csv_file_names):
-        labels[i] = pd.read_csv(f"./labels/{csv}.csv").iloc[:,0]
-        labels[i] = labels[i].str.strip()
+            labels[i] = pd.read_csv(f"./labels/{csv}.csv").iloc[:,0]
+            labels[i] = labels[i].str.strip()
 
     csv_file_names.insert(11,"pizza")
     for i in range(0,11):
@@ -324,24 +359,45 @@ def create_labeled_vocab(vocab: pd.DataFrame):
 
     return vocab, vocab_encoder, label_encoder
 class conversions():
-    def __init__(self,vocab):
+    def __init__(self,vocab,label_encoder):
         self.token_to_id = dict(zip(vocab["tokens"], vocab["encoded_tokens"]))
         self.token_to_id["PAD"] = vocab.shape[0]
+        self.token_to_id["<S>"] = vocab.shape[0]  + 1
+        self.token_to_id["</S>"] = vocab.shape[0] + 2
+
+        self.label_to_id = dict(zip(label_encoder.categories_[0],range(len(label_encoder.categories_[0]))))
+        self.label_to_id["<S>"]  = 12
+        self.label_to_id["</S>"] = 13
+
         self.token_to_label = dict(zip(vocab["tokens"], vocab["encoded_labels"]))
 
+        self.token_to_label["<S>"] = 12
+        self.token_to_label["</S>"] = 13
+
         self.id_to_token = dict(zip(vocab["encoded_tokens"],vocab["tokens"]))
-        self.id_to_label = dict(zip(vocab["encoded_labels"],vocab["labels"]))
+        self.id_to_token[vocab.shape[0] + 1] = "<S>"
+        self.id_to_token[vocab.shape[0] + 2] = "</S>"
         
+        self.id_to_label = dict(zip(vocab["encoded_labels"],vocab["labels"]))
+        self.id_to_token[12] = "<S>"
+        self.id_to_token[13] = "</S>"
+
     def word2id(self,word):
         x = self.token_to_id.get(word, None)
-        if x:
+        if not isinstance(x,type(None)):
             return x
         else:
             return self.token_to_id.get("UNK",None)
-    def word2labels(self,word):
-        return self.token_to_label.get(word, -1)
+        
+    def labels2id(self,word):
+        return self.label_to_id.get(word, None)
+    
+    def word2label(self,word):
+        return self.token_to_label.get(word,-1)
+    
     def id2token(self,number):
         return self.id_to_token.get(int(number),"UNK")
+    
     def id2label(self,number):
         return self.id_to_label.get(number, None)
 # we can use the DataSet class from pytorch to facilitate 
@@ -367,7 +423,7 @@ def to_pass_size_as_arg(size):
 class RNN(nn.Module):
     def __init__(self, input_size, num_classes, hidden_size):
         super(RNN,self).__init__()
-        self.embedding = nn.Embedding(num_embeddings=input_size+1,embedding_dim=100,padding_idx=input_size).to(device)
+        self.embedding = nn.Embedding(num_embeddings=input_size+3,embedding_dim=100,padding_idx=input_size).to(device)
         nn.init.kaiming_uniform_(self.embedding.weight,mode="fan_in", nonlinearity="relu")
         self.hidden_size = hidden_size
         # batch_first = True means that batch is the first dimension
