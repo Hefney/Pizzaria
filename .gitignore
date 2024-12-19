@@ -142,3 +142,4 @@ utils.py
 eval_labels/negation.csv
 eval_labels/none.csv
 eval_labels/quantity.csv
+/PIZZA_test.json
