@@ -32,18 +32,14 @@ def load_model_state(model, path, device=None):
         device: Device to load the model to (default: None, will use CUDA if available)
     """
     try:
-        # Determine device if not specified
         if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # Load state dict
-        state_dict = torch.load(path, map_location=device)
+        state_dict = torch.load(path, device)
+        model.to(device)
         model.load_state_dict(state_dict)
-
-        # Move model to device and set to eval mode
-        model = model.to(device)
         model.eval()
-
+        
         return model
     except Exception as e:
         raise Exception(f"Error loading model from {path}: {str(e)}")

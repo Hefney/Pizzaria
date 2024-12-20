@@ -145,6 +145,33 @@ extra_tokens = [
     "<pad>"
 ]
 
+drinks = [
+    "sprite",
+    "coke",
+    "pepsi",
+    "fanta",
+    "lemonade",
+    "milkshake",
+    "smoothie",
+    "milk",
+    "beer",
+    "wine",
+    "whiskey",
+    "vodka",
+    "gin",
+    "rum",
+    "tequila",
+    "margarita",
+    "martini",
+    "sangria",
+    "mojito"
+]
+
+negations = [
+    "hold on",
+    "don't",
+]
+
 
 def isNumber(s: str) -> bool:
     s = s.lower()
@@ -172,3 +199,8 @@ def getRandomTopping() -> str:
 def isPersonalPronoun(s: str) -> bool:
     s = s.lower()
     return s in personal_pronouns
+
+
+def isDrink(s: str) -> bool:
+    s = s.lower()
+    return s in drinks
