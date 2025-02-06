@@ -155,8 +155,7 @@ This is achieved by Seq2Seq mapping, using a LSTM for each model.
 ## Getting Started
 Before you begin, ensure you have the following installed:
 
-- [Node.js](https://nodejs.org/) (v14.x or later)
-- [npm](https://www.npmjs.com/) (v6.x or later) or [Yarn](https://yarnpkg.com/) (v1.22.x or later)
+- Python3
 - A code editor, such as [Visual Studio Code](https://code.visualstudio.com/)
 
 #### Steps
