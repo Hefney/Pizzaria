@@ -166,11 +166,12 @@ cd Pizzaria
 ```
 2. Install Dependencies
 
-Install the necessary dependencies using npm:
+Install the necessary dependencies using pip:
 ```bash
 pip install language-tool-python pyspellchecker pyenchant
 ```
 you will also need to install CUDA with torch, head to pytorch website for more info.
+
 3. Training
 
 The entire train pipeline can be found in [model_trainer.ipynb](model_trainer.ipynb),
