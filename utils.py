@@ -114,13 +114,13 @@ def project_tokens(text: list[str], vocab: dict[str, int]) -> list[int]:
         token = stemmer.stem(token)
         if token in vocab:
             result.append(vocab[token])
-        # else:
+        else:
         #     print(f"Word: \"{before}\" -> \"{token}\" not in vocab")
         #     print(f"isPersonalPronoun: {extra_sets.isPersonalPronoun(token)}")
         #     print(f"isNumber: {extra_sets.isNumber(token)}")
         #     print(f"isTopping: {extra_sets.isTopping(token)}")
         #     print(f"isQuantity: {extra_sets.isQuantity(token)}")
-        #     result.append(vocab["<unk>"])
+            result.append(vocab["<unk>"])
     return result
 
 
