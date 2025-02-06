@@ -66,31 +66,7 @@
 This is our 4th year (1st term) NLP project. Winning the first place in the competition held in our
 department achieving ~80% accuracy in the university final test set. We Feature a semantic pizza order
 parser, that given a pizza order input written in natural text it outputs a structured json that 
-describes the order. See Example:
-```
-"Tuan thin crust"
-╭──────────────────── JSON ────────────────────╮
-│ {                                            │
-│     "ORDER": {                               │
-│         "PIZZAORDER": [                      │
-│             {                                │
-│                 "NUMBER": null,              │
-│                 "SIZE": null,                │
-│                 "STYLE": [                   │
-│                     {                        │
-│                         "NOT": false,        │
-│                         "TYPE": "thin crust" │
-│                     }                        │
-│                 ],                           │
-│                 "AllTopping": []             │
-│             }                                │
-│         ],                                   │
-│         "DRINKORDER": []                     │
-│     }                                        │
-│ }                                            │
-╰──────────────────────────────────────────────╯
-```
-Other examples can be found at the end of this readme file.
+describes the order. See Examples in Gallary for visualization.
 
 ### Built With
 
